@@ -1,0 +1,19 @@
+
+> temp-app@0.1.0 dev
+> next dev
+
+Γû▓ Next.js 16.1.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://10.5.0.2:3000
+- Environments: .env.local
+
+Γ£ô Starting...
+Γ£ô Ready in 1442ms
+Searching in Shared Drive: 0AKcpoFd5R_JwUk9PVA
+Found existing folder: 1zUW0QK7pvGqrXQ1B2_lHGIy0uyCP-OiT
+Searching in Shared Drive: 0AKcpoFd5R_JwUk9PVA
+Found existing folder: 1zUW0QK7pvGqrXQ1B2_lHGIy0uyCP-OiT
+ POST /api/auto-run/start 200 in 7.4s (compile: 1386ms, render: 6.0s)
+Searching in Shared Drive: 0AKcpoFd5R_JwUk9PVA
+Found existing folder: 1zUW0QK7pvGqrXQ1B2_lHGIy0uyCP-OiT
+ GET /api/auto-run/status 200 in 2.2s (compile: 35ms, render: 2.2s)

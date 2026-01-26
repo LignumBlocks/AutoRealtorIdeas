@@ -1,0 +1,5 @@
+
+FullName                                                      Length LastWriteTime
+--------                                                      ------ -------------
+C:\Users\pared\AutoRealtorIdeas\.secrets\service-account.json   2392 1/21/2026 12:16:18 PM
+

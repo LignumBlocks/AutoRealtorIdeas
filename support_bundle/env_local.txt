@@ -1,0 +1,2 @@
+GOOGLE_SA_KEY_PATH=C:\Users\pared\AutoRealtorIdeas\.secrets\service-account.json
+GOOGLE_ADMIN_EMAIL=nelson.paredes@lignumcd.com
