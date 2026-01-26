@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { MIAMI_DOLORES } from '@/lib/run-engine/miami-mvp';
 
 // Using simple types since we fetch details
 interface CountryItem { name_es: string; code: string; }
@@ -13,6 +14,7 @@ export default function NewRunPage() {
     const [query, setQuery] = useState('');
     const [suggestions, setSuggestions] = useState<CountryItem[]>([]);
     const [selectedCountry, setSelectedCountry] = useState<CountryItem | null>(null);
+    const [selectedTopic, setSelectedTopic] = useState('HOA_CONDO_SHOCK'); // Default MVP topic
     const [manRunning, setManRunning] = useState(false);
 
     // Auto Run State
@@ -54,15 +56,18 @@ export default function NewRunPage() {
             return;
         }
         setManRunning(true);
-        addLog(`Started Manual Run: ${selectedCountry.name_es} (${selectedCountry.code})`);
+        addLog(`Started MVP Run: ${selectedCountry.name_es} | Topic: ${selectedTopic}`);
         try {
             const res = await fetch('/api/run-country', {
                 method: 'POST',
-                body: JSON.stringify({ country_code: selectedCountry.code })
+                body: JSON.stringify({
+                    country_code: selectedCountry.code,
+                    topic: selectedTopic
+                })
             });
             const data = await res.json();
             if (data.ok) {
-                addLog(`✅ Success: ${data.stats.written} Pearls Written (Found ${data.stats.verified} Verified)`);
+                addLog(`✅ Success: ${data.stats.written} Pearls in Shortlist (Found ${data.stats.verified} Verified)`);
             } else {
                 addLog(`❌ Failed: ${data.error}`);
             }
@@ -185,9 +190,23 @@ export default function NewRunPage() {
 
                 {/* Manual Controls */}
                 <div className="bg-white p-6 rounded-lg shadow mb-8 text-black">
-                    <h2 className="text-xl font-semibold mb-4 text-black">Manual Run {providerBadge}</h2>
-                    <div className="relative mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Select Country (Español) - e.g. "España", "Reino Unido"</label>
+                    <h2 className="text-xl font-semibold mb-4 text-black">MVP Seller Run (ES)</h2>
+
+                    <div className="mb-6">
+                        <label className="block text-sm font-bold text-blue-900 mb-2">🎯 1. Selecciona Dolor Miami (Topic)</label>
+                        <select
+                            className="w-full border p-3 rounded bg-blue-50 font-bold"
+                            value={selectedTopic}
+                            onChange={e => setSelectedTopic(e.target.value)}
+                        >
+                            {MIAMI_DOLORES.map(d => (
+                                <option key={d.id} value={d.id}>{d.label} - {d.description}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="relative mb-6">
+                        <label className="block text-sm font-bold text-gray-700 mb-2">🌎 2. Selecciona Contexto (País base para Perlas)</label>
                         <input
                             type="text"
                             className="w-full border p-2 rounded"

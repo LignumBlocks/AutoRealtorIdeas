@@ -3,12 +3,15 @@
 import { useState } from 'react';
 import IdeaRow, { IdeaProps } from './IdeaRow';
 import ChatModal from './ChatModal';
+import ExperimentPackDrawer from './ExperimentPackDrawer';
 
 export default function LibraryClient({ initialIdeas }: { initialIdeas: any[] }) {
     const [showAll, setShowAll] = useState(false);
 
-    // Modal State
+    // Modal & Drawer State
     const [selectedIdea, setSelectedIdea] = useState<IdeaProps | null>(null);
+    const [activePack, setActivePack] = useState<any | null>(null);
+    const [selectedIdeaForPack, setSelectedIdeaForPack] = useState<any | null>(null);
 
     // Sort by Score
     // Filter: Verified Only (default) vs All
@@ -21,6 +24,28 @@ export default function LibraryClient({ initialIdeas }: { initialIdeas: any[] })
     });
 
     const sortedIdeas = filteredIdeas.sort((a, b) => b.overall_score - a.overall_score);
+
+    const handleGeneratePack = async (idea: IdeaProps) => {
+        try {
+            const res = await fetch('/api/generate-experiment-pack', {
+                method: 'POST',
+                body: JSON.stringify({
+                    ideaTitle: idea.title,
+                    ideaSummary: idea.summary,
+                    country: idea.country
+                })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                setActivePack(data.pack);
+                setSelectedIdeaForPack(idea);
+            } else {
+                alert(`Error generating pack: ${data.error}`);
+            }
+        } catch (e) {
+            alert('Failed to generate experiment pack. Check network.');
+        }
+    };
 
     return (
         <div className="p-8 max-w-7xl mx-auto">
@@ -64,6 +89,7 @@ export default function LibraryClient({ initialIdeas }: { initialIdeas: any[] })
                                 key={idea.fingerprint || i}
                                 idea={idea}
                                 onOpenChat={(i) => setSelectedIdea(i)}
+                                onGeneratePack={handleGeneratePack}
                             />
                         ))}
                         {sortedIdeas.length === 0 && (
@@ -77,11 +103,22 @@ export default function LibraryClient({ initialIdeas }: { initialIdeas: any[] })
                 </table>
             </div>
 
-            {/* Render Modal OUTSIDE the table */}
+            {/* Modals & Drawers */}
             {selectedIdea && (
                 <ChatModal
                     idea={selectedIdea}
                     onClose={() => setSelectedIdea(null)}
+                />
+            )}
+
+            {activePack && selectedIdeaForPack && (
+                <ExperimentPackDrawer
+                    idea={selectedIdeaForPack}
+                    pack={activePack}
+                    onClose={() => {
+                        setActivePack(null);
+                        setSelectedIdeaForPack(null);
+                    }}
                 />
             )}
         </div>

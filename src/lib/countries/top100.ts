@@ -1,5 +1,9 @@
-// Top100 = Fixed set of 100 countries for comparative runs; regional mix; excludes duplicates; stable order.
-// Optimized for verified real estate markets with digital presence.
+export interface CountryDef {
+    code: string;
+    name_es: string;
+    name_en: string;
+    region: string;
+}
 
 export const TOP100_COUNTRIES: CountryDef[] = [
     // --- EUROPE (Priority) ---

@@ -22,13 +22,16 @@ const IDEAS_HEADERS = [
     // Run 2.4 Rich Cols
     'execution_steps_json', 'script_json', 'monetization_json', 'friction_notes', 'cost_notes',
     // Run 3.0
-    'chat_md'
+    'chat_md',
+    // Run 3.6.4 MVP
+    'proof_pack_json', 'miami_saturation_json'
 ];
 
 // Run 3.1: Library View (Human Friendly)
 const LIBRARY_VIEW_HEADERS = [
     'overall_score', 'country', 'name', 'why_viral', 'why_pearl',
-    'evidence_count', 'sources', 'chat_md', 'miami_adapt', 'run_date', 'run_id'
+    'evidence_count', 'sources', 'chat_md', 'miami_adapt', 'run_date', 'run_id',
+    'proof_pack_json', 'miami_saturation_json'
 ];
 
 // Run 3.1: Stats

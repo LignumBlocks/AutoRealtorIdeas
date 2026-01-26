@@ -1,51 +1,67 @@
 import { SerperProvider } from '../search/serper';
 import { GeminiProvider, GeminiIdea } from './providers/gemini';
-import { Country, CountryDef } from '../countries/top100';
+import { CountryDef } from '../countries/top100';
+import * as fs from 'fs';
+import * as path from 'path';
 
-export interface IdeaCandidate extends GeminiIdea {
-    raw_text: string;
+const DEBUG_LOG_PATH = path.join(process.cwd(), 'logs', 'debug_verify.log');
+
+function logDebug(msg: string) {
+    const timestamp = new Date().toISOString();
+    const fullMsg = `[${timestamp}] ${msg}\n`;
+    console.log(msg);
+    try {
+        if (!fs.existsSync(path.dirname(DEBUG_LOG_PATH))) {
+            fs.mkdirSync(path.dirname(DEBUG_LOG_PATH), { recursive: true });
+        }
+        fs.appendFileSync(DEBUG_LOG_PATH, fullMsg);
+    } catch (e) {
+        console.error('Failed to write to debug log:', e);
+    }
 }
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-export async function researchCountry(country: CountryDef): Promise<IdeaCandidate[]> {
+export interface IdeaCandidate extends GeminiIdea {
+    raw_text: string;
+    source_url: string;
+}
+
+/**
+ * Main research engine. 
+ * In MVP SELLER_MIAMI_ES, this will be focused on the selected Topic/Dolor.
+ */
+export async function researchCountry(country: CountryDef, topic?: string): Promise<IdeaCandidate[]> {
     const searcher = new SerperProvider();
     const synthesizer = new GeminiProvider();
 
-    // 1. Define Deep Search Queries (15+)
-    const baseQueries = [
-        // English (Broad & Tech)
+    // 1. Define Queries (MVP: Focus on Topic if provided)
+    const baseQueries = topic ? [
+        `${topic} real estate Miami`,
+        `${topic} inmobiliaria Miami`,
+        `${topic} homeowners problems Miami`,
+        `how to sell property fast ${topic} Miami`,
+        `marketing strategies for ${topic} sellers Miami`
+    ] : [
         `real estate marketing ideas ${country.name_en} 2025`,
         `best proptech startups for agents ${country.name_en}`,
         `faceless youtube content ideas for realtors ${country.name_en}`,
         `how to get real estate leads without cold calling ${country.name_en}`,
         `automated real estate lead generation ${country.name_en}`,
         `real estate instagram reels ideas ${country.name_en}`,
-        `top real estate agents ${country.name_en} marketing strategy`,
-        // Local Intent (Targeting ES/Local language nuances via name_es)
-        // If name_es is different, it helps maximize local results
         `marketing inmobiliario tendencias ${country.name_es} 2025`,
-        `herramientas para agentes inmobiliarios ${country.name_es}`,
-        `ideas contenido inmobiliario sin salir en camara ${country.name_es}`,
-        `captacion de exclusivas inmobiliarias automatizada ${country.name_es}`,
-        `proptech startups ${country.name_es}`,
-        `estrategias venta inmobiliaria ${country.name_es}`,
-        `como vender pisos rapido ${country.name_es} estrategias`,
-        `guiones de llamada inmobiliaria ${country.name_es}`
+        `captacion de exclusivas inmobiliarias automatizada ${country.name_es}`
     ];
 
     let allResults: any[] = [];
-    console.log(`[Research] Starting DEEP SEARCH (V3.2) for ${country.name_es} (${country.code}). Queries: ${baseQueries.length}`);
+    const targetName = topic || country.name_es;
+    console.log(`[Research] Starting ${topic ? 'TOPIC' : 'COUNTRY'} SEARCH for ${targetName}. Queries: ${baseQueries.length}`);
 
-    // 2. Execute Deep Search Loop
+    // 2. Execute Search Loop
     for (const [idx, q] of baseQueries.entries()) {
         try {
-            if (idx > 0) {
-                const delay = 1200 + Math.random() * 1000;
-                await sleep(delay);
-            }
-
-            const results = await searcher.search(q, country.code, 20); // Deep fetch (20)
+            if (idx > 0) await sleep(1200 + Math.random() * 1000);
+            const results = await searcher.search(q, country.code, 20);
             allResults = [...allResults, ...results];
         } catch (e: any) {
             console.error(`Search failed for "${q}":`, e.message);
@@ -57,84 +73,71 @@ export async function researchCountry(country: CountryDef): Promise<IdeaCandidat
     allResults.forEach(item => {
         if (!item.url) return;
         const normalizedUrl = item.url.split('?utm')[0].split('#')[0].replace(/\/$/, '');
-        if (!uniqueResultsMap.has(normalizedUrl)) {
-            uniqueResultsMap.set(normalizedUrl, item);
-        }
+        if (!uniqueResultsMap.has(normalizedUrl)) uniqueResultsMap.set(normalizedUrl, item);
     });
 
-    // Select Context for Gemini
     const uniqueList = Array.from(uniqueResultsMap.values());
-    // Increased context limit for Rich Pearls
-    const contextLimit = 75;
-    const contextResults = uniqueList.slice(0, contextLimit);
+    const contextResults = uniqueList.slice(0, 75);
 
-    console.log(`[Research] Stats: Raw=${allResults.length}, Unique=${uniqueList.length}. Feeding Top ${contextResults.length} to Gemini.`);
+    console.log(`[Research] Stats: Raw=${allResults.length}, Unique=${uniqueList.length}. Feeding to Gemini.`);
 
-    if (contextResults.length === 0) {
-        console.warn('[Research] No results found. Returning empty.');
-        return [];
-    }
+    if (contextResults.length === 0) return [];
 
     // 4. Synthesize Rich Pearls
-    console.log('[Research] Synthesizing Rich Pearls...');
-    let ideas = await synthesizer.synthesizeIdeas(country.name_es, contextResults);
+    let ideas = await synthesizer.synthesizeIdeas(targetName, contextResults);
 
-    // 5. Verification Sweep (Run 3.6.2 Enhanced)
-    // Identify candidates falling short of Verification (2+ sources)
-    const unverified = ideas.filter(i => i.sources.length < 2);
-    console.log(`[Verification] Sweep needed for ${unverified.length} ideas...`);
-
-    for (const [idx, idea] of unverified.entries()) {
+    // 5. Verification Sweep (MVP ProofPack)
+    for (const [idx, idea] of ideas.entries()) {
+        const itemTitle = idea.title_es || 'Idea';
         try {
             if (idx > 0) await sleep(1500);
+            logDebug(`[Verify] title="${itemTitle}"`);
 
-            let confirmed = false;
-            // Strategy: 3 Attempts with different query styles
-            const strategies = [
-                `${itemTitle(idea)} real estate ${country.name_en}`,
-                `${country.name_en} real estate "${itemTitle(idea)}"`,
-                `${itemTitle(idea)} marketing strategy real estate`
-            ];
+            const existingDomains = new Set(idea.sources.map(s => extractDomain(s)).filter(Boolean));
 
-            const existingDomains = new Set(idea.sources.map(s => extractDomain(s)));
+            // Initialization of evidence_items if not present
+            if (!idea.proof_pack) {
+                idea.proof_pack = { evidence_items: [], confidence_score: 0, gaps: [] };
+            }
 
-            for (const q of strategies) {
-                if (confirmed) break;
+            // Strategy
+            const stratQ = `${itemTitle} real estate ${topic || country.name_en}`;
+            logDebug(`[Verify] query="${stratQ}"`);
+            const vResults = await searcher.search(stratQ, country.code, 10);
 
-                console.log(`[Verification] Checking: ${q}`);
-                const vResults = await searcher.search(q, country.code, 10); // Increase to 10
-                console.log(`[Verification] Found ${vResults.length} hits for "${q}"`);
+            // Population of ProofPack Evidence (MVP REQUIREMENT B)
+            const proofItems: any[] = [];
+            const domainsFound = new Set<string>();
 
-                for (const r of vResults) {
-                    const d = extractDomain(r.url);
-                    if (!d) continue;
-
-                    if (!existingDomains.has(d)) {
-                        console.log(`[Verification] New Domain Candidate: ${d} (URL: ${r.url})`);
-                        idea.sources.push(r.url);
-                        existingDomains.add(d);
-                        if (existingDomains.size >= 2) {
-                            confirmed = true;
-                            break;
-                        }
-                    }
+            for (const r of vResults) {
+                const d = extractDomain(r.url);
+                if (d && !domainsFound.has(d)) {
+                    logDebug(`[Verify] accept domain=${d} url=${r.url}`);
+                    proofItems.push({
+                        url: r.url,
+                        title: r.title,
+                        domain: d,
+                        type: 'Verified',
+                        snippet: r.snippet
+                    });
+                    domainsFound.add(d);
+                    if (!idea.sources.includes(r.url)) idea.sources.push(r.url);
+                    if (domainsFound.size >= 4) break;
                 }
-
-                if (!confirmed) await sleep(1000); // polite delay
             }
 
-            if (confirmed) {
-                console.log(`[Verification] SUCCESS: Promoted "${itemTitle(idea)}" to Verified.`);
-                idea.verified = true;
-                idea.evidence_count = idea.sources.length;
-                idea.evidence_summary = `Verified via Sweep (${idea.sources.length} sources)`;
-            } else {
-                console.log(`[Verification] FAILED: "${itemTitle(idea)}" stays unverified.`);
-                idea.evidence_summary = `Verification failed after ${strategies.length} strategies`;
-            }
+            idea.verified = domainsFound.size >= 2;
+            idea.proof_pack = {
+                evidence_items: proofItems,
+                confidence_score: Math.min(domainsFound.size * 25, 100),
+                gaps: domainsFound.size < 2 ? ["Need at least 2 independent verified domains."] : []
+            };
+            idea.evidence_count = proofItems.length;
+
+            logDebug(`[Verify] RESULT verified=${idea.verified} confidence=${idea.proof_pack.confidence_score} count=${idea.evidence_count}`);
 
         } catch (e) {
-            console.error(`[Verification] Error verifying "${itemTitle(idea)}":`, e);
+            console.error(`[Verify] Error verifying "${itemTitle}":`, e);
         }
     }
 
@@ -143,10 +146,6 @@ export async function researchCountry(country: CountryDef): Promise<IdeaCandidat
         source_url: idea.sources[0] || '',
         raw_text: JSON.stringify(idea)
     }));
-}
-
-function itemTitle(i: any): string {
-    return i.name || i.title_es || 'Idea';
 }
 
 function extractDomain(url: string): string | null {

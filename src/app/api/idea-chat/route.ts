@@ -114,12 +114,15 @@ export async function POST(req: Request) {
         if (sheetRowNumber > 0 && chatCol !== undefined) {
             try {
                 await updateCell(sheetId, 'Ideas', sheetRowNumber, chatCol, chatMd);
+                console.log(`[ChatAPI] Successfully saved chat to Sheets: Row=${sheetRowNumber}, Col=${chatCol}`);
             } catch (saveErr) {
-                console.error('Failed to save chat to Sheets (Graceful Degrade):', saveErr);
-                // Return success anyway, user just won't have it persisted
+                console.error('[ChatAPI] Failed to save chat to Sheets (Graceful Degrade):', saveErr);
+                // Return success anyway, user just won't have it persisted in Sheets but sees it in UI
+                return NextResponse.json({ ok: true, chat_md: chatMd, cached: false, saved: false, reason: 'sheets_write_failed' });
             }
         } else {
-            console.warn(`Skipping Sheet Save: Row=${sheetRowNumber}, Col=${chatCol}`);
+            console.warn(`[ChatAPI] Skipping Sheet Save: Missing context (Row=${sheetRowNumber}, Col=${chatCol})`);
+            return NextResponse.json({ ok: true, chat_md: chatMd, cached: false, saved: false, reason: 'missing_sheet_context' });
         }
 
         return NextResponse.json({ ok: true, chat_md: chatMd, cached: false });

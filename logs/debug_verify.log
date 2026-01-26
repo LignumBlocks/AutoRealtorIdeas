@@ -17,3 +17,43 @@ Found existing folder: 1zUW0QK7pvGqrXQ1B2_lHGIy0uyCP-OiT
 Searching in Shared Drive: 0AKcpoFd5R_JwUk9PVA
 Found existing folder: 1zUW0QK7pvGqrXQ1B2_lHGIy0uyCP-OiT
  GET /api/auto-run/status 200 in 2.2s (compile: 35ms, render: 2.2s)
+[2026-01-26T17:11:29.523Z] [Verify] title="Listado de Expertos en Renegociación de Cuotas de HOA"
+[2026-01-26T17:11:29.524Z] [Verify] query="Listado de Expertos en Renegociación de Cuotas de HOA real estate HOA_CONDO_SHOCK"
+[2026-01-26T17:11:30.378Z] [Verify] RESULT verified=true confidence=60
+[2026-01-26T17:11:31.888Z] [Verify] title="Calculadora de Impacto de Cuotas de HOA"
+[2026-01-26T17:11:31.889Z] [Verify] query="Calculadora de Impacto de Cuotas de HOA real estate HOA_CONDO_SHOCK"
+[2026-01-26T17:11:32.555Z] [Verify] accept domain=myhome.freddiemac.com url=https://myhome.freddiemac.com/resources/calculators/closing-costs_ES
+[2026-01-26T17:11:32.557Z] [Verify] RESULT verified=true confidence=70
+[2026-01-26T17:11:34.072Z] [Verify] title="Guía para Vender tu Condo Rápidamente en el Mercado Actual"
+[2026-01-26T17:11:34.073Z] [Verify] query="Guía para Vender tu Condo Rápidamente en el Mercado Actual real estate HOA_CONDO_SHOCK"
+[2026-01-26T17:11:34.670Z] [Verify] accept domain=paramountresidences.net url=https://paramountresidences.net/blog/how-to-sell-a-condo-fast/
+[2026-01-26T17:11:34.671Z] [Verify] RESULT verified=true confidence=70
+[2026-01-26T17:17:50.772Z] [Verify] title="Guía de supervivencia para dueños de condominios en crisis"
+[2026-01-26T17:17:50.773Z] [Verify] query="Guía de supervivencia para dueños de condominios en crisis real estate HOA_CONDO_SHOCK"
+[2026-01-26T17:17:51.530Z] [Verify] accept domain=youtube.com url=https://www.youtube.com/watch?v=pDT1wxsmNOA
+[2026-01-26T17:17:51.531Z] [Verify] RESULT verified=true confidence=80
+[2026-01-26T17:17:53.036Z] [Verify] title="Webinar: Protege tu Inversión en Condominio"
+[2026-01-26T17:17:53.037Z] [Verify] query="Webinar: Protege tu Inversión en Condominio real estate HOA_CONDO_SHOCK"
+[2026-01-26T17:17:53.970Z] [Verify] accept domain=tiktok.com url=https://www.tiktok.com/@adriannastanzione/video/7586680866013842743
+[2026-01-26T17:17:53.971Z] [Verify] RESULT verified=true confidence=80
+[2026-01-26T17:17:55.482Z] [Verify] title="Análisis comparativo de HOAs: Encuentra la mejor opción para ti"
+[2026-01-26T17:17:55.483Z] [Verify] query="Análisis comparativo de HOAs: Encuentra la mejor opción para ti real estate HOA_CONDO_SHOCK"
+[2026-01-26T17:17:56.041Z] [Verify] accept domain=youtube.com url=https://www.youtube.com/watch?v=XlXR21dBFME
+[2026-01-26T17:17:56.042Z] [Verify] RESULT verified=true confidence=80
+[2026-01-26T17:32:10.248Z] [Verify] title="Guía de Supervivencia para Propietarios de Condominios en Miami: Navegando el Choque Cultural de las HOA"
+[2026-01-26T17:32:10.249Z] [Verify] query="Guía de Supervivencia para Propietarios de Condominios en Miami: Navegando el Choque Cultural de las HOA real estate HOA_CONDO_SHOCK"
+[2026-01-26T17:32:11.194Z] [Verify] RESULT verified=true confidence=80
+[2026-01-26T17:32:12.711Z] [Verify] title="Seminario Web Gratuito: Cómo Vender tu Condominio en Miami Rápidamente (Incluso con Altas Tarifas de HOA)"
+[2026-01-26T17:32:12.713Z] [Verify] query="Seminario Web Gratuito: Cómo Vender tu Condominio en Miami Rápidamente (Incluso con Altas Tarifas de HOA) real estate HOA_CONDO_SHOCK"
+[2026-01-26T17:32:13.432Z] [Verify] RESULT verified=true confidence=80
+[2026-01-26T17:46:53.608Z] [Verify] title="Especialista en la Crisis de Condominios: Consultoría Gratuita"
+[2026-01-26T17:46:53.609Z] [Verify] query="Especialista en la Crisis de Condominios: Consultoría Gratuita real estate HOA_CONDO_SHOCK"
+[2026-01-26T17:46:55.133Z] [Verify] RESULT verified=true confidence=60
+[2026-01-26T17:46:56.649Z] [Verify] title="Marketing de Contenido: Guía para Vender tu Condominio en Crisis"
+[2026-01-26T17:46:56.651Z] [Verify] query="Marketing de Contenido: Guía para Vender tu Condominio en Crisis real estate HOA_CONDO_SHOCK"
+[2026-01-26T17:46:57.407Z] [Verify] accept domain=us.amazon.com url=https://us.amazon.com/Real-Estate-Marketing-Business-Investing/s?rh=n%3A154930011%2Cp_27%3AMarketing
+[2026-01-26T17:46:57.408Z] [Verify] RESULT verified=true confidence=70
+[2026-01-26T17:46:58.915Z] [Verify] title="Programa de Alivio HOA: Negociación y Asesoramiento"
+[2026-01-26T17:46:58.916Z] [Verify] query="Programa de Alivio HOA: Negociación y Asesoramiento real estate HOA_CONDO_SHOCK"
+[2026-01-26T17:46:59.612Z] [Verify] accept domain=hcr.ny.gov url=https://hcr.ny.gov/homeowner-assistance-and-resources
+[2026-01-26T17:46:59.615Z] [Verify] RESULT verified=true confidence=70

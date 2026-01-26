@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
+import { SerperProvider } from '@/lib/search/serper';
 import { findCountryByCode, normalizeIdeaTitle } from '@/lib/countries/index';
 import { researchCountry } from '@/lib/run-engine/research';
 import { createOrLocateRootFolder, ensureSubfolders, getDriveClient } from '@/lib/google/drive';
 import { createOrLocateSheet, ensureTabsAndHeaders, appendRows, getSheetsClient } from '@/lib/google/sheets';
-import { generateFingerprint } from '@/lib/run-engine/dedupe';
+import { generateFingerprint } from '@/lib/run-engine/providers/gemini';
 
 export const runtime = 'nodejs';
 
@@ -11,7 +12,7 @@ export async function POST(req: Request) {
     const start = Date.now();
     try {
         const body = await req.json();
-        const { country_code } = body;
+        const { country_code, topic } = body;
 
         if (!country_code) return NextResponse.json({ ok: false, error: 'Missing country_code' }, { status: 400 });
 
@@ -24,21 +25,15 @@ export async function POST(req: Request) {
         await ensureTabsAndHeaders(sheetId);
 
         const sheets = getSheetsClient();
-        const ideasRes = await sheets.spreadsheets.values.get({
-            spreadsheetId: sheetId,
-            range: 'Ideas!Z:Z', // Fingerprint Col is Z
-        });
-        const existingFingerprints = new Set<string>(
-            ideasRes.data.values?.flat() || []
-        );
+        const existingFingerprints = new Set<string>();
 
-        console.log(`[Run] Starting DEEP SEARCH (Pearl Hunt V3.1) for ${country.name_es}...`);
-        const rawCandidates = await researchCountry(country);
+        console.log(`[Run] Starting ${topic ? 'MVP TOPIC' : 'COUNTRY'} SEARCH for ${topic || country.name_es}...`);
+        const rawCandidates = await researchCountry(country, topic);
 
         // Strict Verification
         let pearls = rawCandidates.filter(p => p.evidence_count >= 2 && p.verified);
 
-        // Global Dedupe by Fingerprint (More robust than Title)
+        // Global Dedupe
         const uniquePearls: typeof pearls = [];
         pearls.forEach(p => {
             const fp = generateFingerprint(p);
@@ -49,9 +44,49 @@ export async function POST(req: Request) {
         });
 
         uniquePearls.sort((a, b) => b.overall_score - a.overall_score);
-        const topPearls = uniquePearls.slice(0, 6); // Max 6 stored in Raw DB
 
-        console.log(`[Run] Result: Raw=${rawCandidates.length}, Verified=${pearls.length}, AfterDedupe=${uniquePearls.length}. Writing Top ${topPearls.length}.`);
+        // DE DETERMINISTIC SHORTLIST (3-5 items)
+        const topPearls = uniquePearls.slice(0, 5);
+
+        // MIAMI SATURATION CHECK (For shortlist only)
+        const searcher = new SerperProvider();
+        const PLATFORM_DOMAINS = ['youtube.com', 'eventbrite.com', 'facebook.com', 'instagram.com', 'linkedin.com', 'tiktok.com', 'twitter.com', 'x.com', 'reddit.com', 'pinterest.com'];
+
+        for (const p of topPearls) {
+            console.log(`[Saturation] Checking ${p.name}...`);
+            const enResults = await searcher.search(`${p.name} real estate Miami`, 'US', 10);
+            const esResults = await searcher.search(`${p.name} inmobiliaria Miami`, 'US', 10);
+            const combined = [...enResults, ...esResults];
+
+            const platforms: string[] = [];
+            const competitors: string[] = [];
+
+            combined.forEach(r => {
+                const d = r.url?.split('/')[2]?.replace('www.', '');
+                if (d && !d.includes('google')) {
+                    const isPlatform = PLATFORM_DOMAINS.some(pd => d.includes(pd));
+                    if (isPlatform) {
+                        if (!platforms.includes(d)) platforms.push(d);
+                    } else {
+                        if (!competitors.includes(d)) competitors.push(d);
+                    }
+                }
+            });
+
+            const satScore = Math.min((platforms.length + competitors.length * 2) * 10, 100);
+            const alreadyCommon: 'YES' | 'NO' | 'UNKNOWN' =
+                competitors.length >= 5 ? 'YES' :
+                    competitors.length >= 2 ? 'NO' :
+                        'UNKNOWN';
+
+            p.miami_saturation = {
+                who_does_it: { platforms: platforms.slice(0, 3), competitors: competitors.slice(0, 5) },
+                saturation_score: satScore,
+                already_common: alreadyCommon
+            };
+        }
+
+        console.log(`[Run] Result: Raw=${rawCandidates.length}, Verified=${pearls.length}, Shortlist=${topPearls.length}.`);
 
         const runId = `RUN_DS_${country.code}_${Date.now()}`;
         const runDate = new Date().toISOString();
@@ -78,28 +113,32 @@ export async function POST(req: Request) {
 
         // 1. Logs Tab (Runs)
         await appendRows(sheetId, 'Runs', [[
-            runId, runDate, country.name_es, country.region, 'deep-search-v3.1',
+            runId, runDate, topic || country.name_es, country.region, 'miami-mvp-3.6.4',
             topPearls.length, rawCandidates.length, `Verified: ${pearls.length}`,
-            runFolderId, sheetId, runDate
+            '', sheetId, runDate
         ]]);
 
         // 2. Raw DB (Ideas)
         if (topPearls.length > 0) {
             const ideaRows = topPearls.map((p, idx) => [
                 runId, runDate, country.name_es, idx + 1, 'Pearl', 'B2C',
-                p.name, 'Unknown', p.faceless_format, p.why_viral, p.description,
+                p.name, topic || 'Unknown', p.faceless_format, p.why_viral, p.description,
                 p.monetization, 'Medium', 'DeepSearch', p.source_url,
                 'Verified', runDate,
                 // Run 2 Cols
-                p.b2_model, p.faceless_score, 0, p.selling_friction, p.cost_score,
+                p.b2_model, p.faceless_fit, 0, p.selling_friction, p.cost_score,
                 p.miami_fit, p.overall_score, p.is_top_pick, generateFingerprint(p),
                 p.evidence_count, p.evidence_summary,
-                // Run 2.4 Rich Cols: JSON stringify arrays/objects
+                // Run 2.4 Rich Cols
                 JSON.stringify(p.execution_steps),
                 JSON.stringify(p.faceless_script),
                 JSON.stringify(p.monetization_options),
                 p.friction_notes,
-                p.cost_notes
+                p.cost_notes,
+                '', // chat_md placeholder
+                // Run 3.6.4 ProofPack (NEW)
+                JSON.stringify(p.proof_pack),
+                JSON.stringify(p.miami_saturation) // NEW COL
             ]);
             await appendRows(sheetId, 'Ideas', ideaRows);
 
@@ -115,25 +154,24 @@ export async function POST(req: Request) {
             });
             await appendRows(sheetId, 'Sources', sourceRows);
 
-            // 3. Populate LIBRARY_VIEW (High Quality Filter)
-            // Filter: Verified + Sufficient Score (>=75 just to be safe, but "Top Pick" logic is usually 80)
+            // 3. Populate LIBRARY_VIEW
             const libraryRows: any[][] = [];
             topPearls.forEach(p => {
-                if (p.is_top_pick || p.overall_score >= 80) {
-                    libraryRows.push([
-                        p.overall_score,
-                        country.name_es,
-                        p.name,
-                        p.why_viral,
-                        p.description, // using summary as why_pearl proxy? No, description is summary. why_viral is why pearl.
-                        p.evidence_count,
-                        p.sources.join(', '),
-                        '', // chat_md empty initially
-                        '', // miami_adapt empty initially
-                        runDate,
-                        runId
-                    ]);
-                }
+                libraryRows.push([
+                    p.overall_score,
+                    country.name_es,
+                    p.name,
+                    p.why_viral,
+                    p.description,
+                    p.evidence_count,
+                    p.sources.join(', '),
+                    '', // chat_md
+                    '', // miami_adapt
+                    runDate,
+                    runId,
+                    JSON.stringify(p.proof_pack),
+                    JSON.stringify(p.miami_saturation) // NEW COL
+                ]);
             });
             if (libraryRows.length > 0) {
                 await appendRows(sheetId, 'LIBRARY_VIEW', libraryRows);

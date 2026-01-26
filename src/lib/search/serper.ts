@@ -45,7 +45,7 @@ export class SerperProvider implements SearchProvider {
             }));
 
         } catch (error: any) {
-            console.error('Serper Search Error:', error.message);
+            console.error(`[Serper] Search Error for "${query}":`, error.message);
             return [];
         }
     }
