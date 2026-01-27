@@ -1,0 +1,47 @@
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Host rei.orquix.com:443 was resolved.
+* IPv6: (none)
+* IPv4: 148.230.125.225
+*   Trying 148.230.125.225:443...
+* schannel: disabled automatic use of client certificate
+* ALPN: curl offers http/1.1
+* ALPN: server accepted http/1.1
+* Established connection to rei.orquix.com (148.230.125.225 port 443) from 10.5.0.2 port 63749 
+* using HTTP/1.x
+> GET /api/runNow HTTP/1.1
+
+> Host: rei.orquix.com
+
+> User-Agent: curl/8.16.0
+
+> Accept: */*
+
+> 
+
+* schannel: remote party requests renegotiation
+* schannel: renegotiating SSL/TLS connection
+* schannel: SSL/TLS connection renegotiated
+* Request completely sent off
+< HTTP/1.1 404 Not Found
+
+< Alt-Svc: h3=":443"; ma=2592000
+
+< Cache-Control: no-store
+
+< Content-Type: application/json; charset=utf-8
+
+< Date: Sun, 25 Jan 2026 23:04:58 GMT
+
+< Via: 1.1 Caddy
+
+< Transfer-Encoding: chunked
+
+< 
+
+{ [64 bytes data]
+
+100    53    0    53    0     0    111      0 --:--:-- --:--:-- --:--:--   112
+* Connection #0 to host rei.orquix.com:443 left intact
+{"ok":false,"error":"NOT_FOUND","path":"/api/runNow"}

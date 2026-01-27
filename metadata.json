@@ -1,0 +1,7 @@
+{
+  "name": "Real Estate Ideas MVP",
+  "description": "A comprehensive Real Estate idea generator and analyzer using Gemini and Tavily.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
