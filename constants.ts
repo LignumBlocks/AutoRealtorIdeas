@@ -1,4 +1,8 @@
-export const TAVILY_API_KEY = "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";
+const TAV_KEY = import.meta.env.VITE_TAVILY_API_KEY;
+if (!TAV_KEY) {
+  throw new Error("VITE_TAVILY_API_KEY is not defined in environment variables");
+}
+export const TAVILY_API_KEY = TAV_KEY;
 
 export enum SofloStatus {
   LOW = 'Low',
