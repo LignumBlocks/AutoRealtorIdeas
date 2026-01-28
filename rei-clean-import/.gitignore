@@ -1,0 +1,10 @@
+.env
+.env.*
+node_modules/
+logs/
+*.log
+support_bundle/
+.devserver.pid
+.next/
+out/
+dist/
