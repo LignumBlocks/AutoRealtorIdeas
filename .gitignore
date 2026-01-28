@@ -22,3 +22,16 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Secrets and Keys
+secrets/
+*.json
+!metadata.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!next.config.json
+!.vscode/*.json
+
+.env
+.env.*

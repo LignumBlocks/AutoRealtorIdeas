@@ -1,0 +1,117 @@
+import { getSheetsClient } from '@/lib/google/sheets';
+import { getDriveClient } from '@/lib/google/drive';
+import IdeaRow from './IdeaRow';
+
+export const runtime = 'nodejs';
+
+async function getIdeas() {
+    try {
+        const drive = getDriveClient();
+        const sharedDriveId = process.env.DRIVE_SHARED_DRIVE_ID;
+
+        const q = `name = 'Auto_Realtor_Ideas_Log' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`;
+        const listParams: any = { q };
+        if (sharedDriveId) {
+            listParams.driveId = sharedDriveId;
+            listParams.corpora = 'drive';
+            listParams.includeItemsFromAllDrives = true;
+            listParams.supportsAllDrives = true;
+        } else {
+            listParams.spaces = 'drive';
+        }
+
+        const fileRes = await drive.files.list(listParams);
+        if (!fileRes.data.files?.length) return [];
+        const sheetId = fileRes.data.files[0].id!;
+
+        const sheets = getSheetsClient();
+        const res = await sheets.spreadsheets.values.get({
+            spreadsheetId: sheetId,
+            range: 'Ideas!A2:AZ1000',
+        });
+
+        const rows = res.data.values || [];
+        // Mapping based on new "Pearl" layout
+        return rows.map(r => ({
+            country: r[2],
+            type: r[4],
+            title: r[6],
+            summary: r[10],
+            source_url: r[14], // legacy single source
+            verified_status: r[15],
+
+            // New Cols
+            faceless_score: Number(r[18] || 0),
+            overall_score: Number(r[23] || 0),
+            is_top_pick: r[24] === 'TRUE',
+
+            // Col Z (Index 25) = Fingerprint
+            fingerprint: r[25],
+
+            // Col M (Index 12) = Miami Adapt
+            miami_adapt: (r[12] && r[12] !== 'Medium' && r[12].length > 20) ? r[12] : null,
+
+            evidence_count: Number(r[26] || 0),
+            evidence_summary: r[27] || '',
+
+            why_pearl: r[9], // Mapped 'why_viral'
+
+            // Derive sources array from source_url if multiple not avail here, 
+            // but ideally we'd fetch Source tab. For now pass source_url as single.
+            sources: r[14] ? [r[14]] : [] // TODO: If needed, fetch full sources. For adaptation, 1-2 verified is enough context.
+        }));
+    } catch (e) {
+        console.error(e);
+        return [];
+    }
+}
+
+export default async function LibraryPage() {
+    const ideas = await getIdeas();
+
+    // Grouping or just sorting
+    const sortedIdeas = ideas.sort((a, b) => b.overall_score - a.overall_score);
+
+    return (
+        <div className="p-8 max-w-7xl mx-auto">
+            <h1 className="text-3xl font-bold mb-2">Pearl Library</h1>
+            <p className="text-gray-500 mb-6">Generated Ideas (Verified Sources Only)</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div className="bg-blue-50 p-4 rounded border border-blue-200">
+                    <span className="block text-sm text-blue-600 font-bold uppercase">Total Pearls</span>
+                    <span className="text-3xl font-bold text-blue-900">{ideas.length}</span>
+                </div>
+                <div className="bg-green-50 p-4 rounded border border-green-200">
+                    <span className="block text-sm text-green-600 font-bold uppercase">Top Picks (>80)</span>
+                    <span className="text-3xl font-bold text-green-900">{ideas.filter(i => i.overall_score >= 80).length}</span>
+                </div>
+            </div>
+
+            <div className="bg-white rounded shadow text-black overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                    <thead className="bg-gray-100 border-b">
+                        <tr>
+                            <th className="p-4 w-24 text-center">Score</th>
+                            <th className="p-4 w-32">Country</th>
+                            <th className="p-4">Pearl Title (Es)</th>
+                            <th className="p-4 w-32 text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sortedIdeas.map((idea, i) => (
+                            <IdeaRow key={i} idea={idea} />
+                        ))}
+                        {sortedIdeas.length === 0 && (
+                            <tr>
+                                <td colSpan={4} className="p-8 text-center text-gray-500">
+                                    No pearls found. Run the Deep Search engine.
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}
