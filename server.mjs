@@ -268,7 +268,18 @@ app.post("/api/engine/runTopic", async (req, res) => {
     const out = await engineRunTopic(req.body);
     res.json(out);
 });
+app.get('/api/auto-run/status', (req, res) => {
+  res.json({
+    ok: true,
+    enabled: false,
+    running: false,
+    lastRun: null,
+    nextRun: null,
+    note: 'stub: auto-run not enabled on this server'
+  });
+});
 
 app.listen(PORT, HOST, () => {
     console.log(`rei-api (Express) listening on http://${HOST}:${PORT}`);
 });
+
