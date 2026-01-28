@@ -73,6 +73,7 @@ export class GeminiProvider {
         1. **NO HALLUCINATIONS**: Every idea must be backed by the provided text.
         2. **VERIFICATION**: Set "verified": true ONLY if sources.length >= 2 (DISTINCT domains).
         3. **LANGUAGE**: Output fields in Spanish (ES) as requested in schema.
+        4. **OUTPUT FORMAT**: Return ONLY a valid JSON Array of "Pearl" objects. DO NOT include markdown backticks or any explanation.
         
         Detailed Fields:
         - execution_steps: Real, non-generic steps.
@@ -82,14 +83,37 @@ export class GeminiProvider {
         Input Context:
         ${context}
 
-        Output a JSON Array of "Pearl" objects.
+        Output PURE JSON:
         `;
 
         try {
             const result = await model.generateContent(prompt);
-            const text = result.response.text();
+            let text = result.response.text();
 
-            const raw = JSON.parse(text);
+            // Robust Parse
+            let raw: any;
+            try {
+                // 1. Clean code fences
+                if (text.includes('```')) {
+                    text = text.split('```')[1];
+                    if (text.startsWith('json')) text = text.slice(4);
+                    if (text.endsWith('```')) text = text.slice(0, -3);
+                }
+                raw = JSON.parse(text.trim());
+            } catch (innerError) {
+                // 2. Fallback to extracting block
+                const firstBrace = text.indexOf('[');
+                const lastBrace = text.lastIndexOf(']');
+                if (firstBrace !== -1 && lastBrace !== -1) {
+                    try {
+                        raw = JSON.parse(text.substring(firstBrace, lastBrace + 1));
+                    } catch (e2) {
+                        throw new Error(`GEMINI_PARSE_ERROR: Failed to parse JSON even after cleaning. Preview: ${text.substring(0, 200)}`);
+                    }
+                } else {
+                    throw new Error(`GEMINI_PARSE_ERROR: No JSON array found. Preview: ${text.substring(0, 200)}`);
+                }
+            }
             const results: GeminiIdea[] = [];
 
             if (Array.isArray(raw)) {
