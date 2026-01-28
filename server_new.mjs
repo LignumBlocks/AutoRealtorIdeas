@@ -16,10 +16,64 @@ app.use((req, res, next) => {
 // --- UTILS ---
 
 function requireAccess(req) {
-  const expected = (process.env.REI_ACCESS_CODE || "").trim();
-  if (!expected) return true;
-  const got = String(req.headers["x-rei-access-code"] || req.headers["X-REI-ACCESS-CODE"] || "").trim();
-  return got && got === expected;
+  // 1. Check legacy Access Code
+  const expectedAccess = (process.env.REI_ACCESS_CODE || "").trim();
+  const gotAccess = String(req.headers["x-rei-access-code"] || req.headers["X-REI-ACCESS-CODE"] || "").trim();
+
+  // 2. Check X-API-Key (new requirement)
+  const expectedApiKey = (process.env.REI_API_KEY || "").trim();
+  const gotApiKey = String(req.headers["x-api-key"] || req.headers["X-API-KEY"] || "").trim();
+
+  // If REI_API_KEY is set, it MUST match
+  if (expectedApiKey) {
+    if (!gotApiKey || gotApiKey !== expectedApiKey) return false;
+  }
+
+  // Fallback to legacy REI_ACCESS_CODE if no API KEY set
+  if (expectedAccess && !expectedApiKey) {
+    return gotAccess && gotAccess === expectedAccess;
+  }
+
+  return true;
+}
+
+function extractAndParseJSON(text) {
+  let cleanText = text.trim();
+  try {
+    // 1. Try direct parse
+    return { ok: true, data: JSON.parse(cleanText) };
+  } catch (e) {
+    // 2. Try code fence extraction
+    if (cleanText.includes('```')) {
+      let parts = cleanText.split('```');
+      for (let part of parts) {
+        let candidate = part.trim();
+        if (candidate.startsWith('json')) candidate = candidate.slice(4).trim();
+        if (candidate.startsWith('{') || candidate.startsWith('[')) {
+          try { return { ok: true, data: JSON.parse(candidate) }; } catch (e2) { }
+        }
+      }
+    }
+    // 3. Fallback to extracting from first { or [ to last } or ]
+    const firstBrace = cleanText.search(/\{|\[/);
+    const lastBrace = Math.max(cleanText.lastIndexOf('}'), cleanText.lastIndexOf(']'));
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      const candidate = cleanText.substring(firstBrace, lastBrace + 1);
+      try {
+        return { ok: true, data: JSON.parse(candidate) };
+      } catch (e3) {
+        return { ok: false, error: "GEMINI_PARSE_ERROR", parse_error: e3.message, preview: cleanText.slice(0, 400) };
+      }
+    }
+    return { ok: false, error: "GEMINI_PARSE_ERROR", parse_error: "No JSON block found", preview: cleanText.slice(0, 400) };
+  }
+}
+
+function sanitizeError(msg) {
+  if (typeof msg !== "string") return msg;
+  return msg
+    .replace(/tvly-[a-zA-Z0-9-]+/g, "tvly-REDACTED")
+    .replace(/AIza[a-zA-Z0-9_-]{35}/g, "GEMINI-REDACTED");
 }
 
 // --- GOOGLE AUTH ---
@@ -174,7 +228,10 @@ async function tavilySearch(query, opts = {}) {
   const payload = { api_key: key, query, search_depth: opts.search_depth || "advanced", include_answer: true, max_results: opts.max_results || 8 };
   const r = await fetch("https://api.tavily.com/search", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
   const data = await r.json();
-  if (!r.ok) return { ok: false, error: data.detail || data.error || `TAVILY_HTTP_${r.status}`, status: r.status };
+  if (!r.ok) {
+    const rawError = data.detail || data.error || `TAVILY_HTTP_${r.status}`;
+    return { ok: false, error: sanitizeError(String(rawError)), status: r.status };
+  }
   const context = (data.results || []).map(r => `[FUENTE: ${r.title || "Sin título"}]\nURL: ${r.url || ""}\nCONTENIDO: ${(r.content || "").slice(0, 1200)}`).join("\n\n---\n\n");
   return { ok: true, data, context };
 }
@@ -187,11 +244,20 @@ async function geminiGenerate(messagesOrPrompt) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
   const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }] }) });
   const data = await r.json();
-  if (!r.ok) return { ok: false, error: data.error?.message || `GEMINI_HTTP_${r.status}`, status: r.status };
+  if (!r.ok) {
+    const rawError = data.error?.message || `GEMINI_HTTP_${r.status}`;
+    return { ok: false, error: sanitizeError(String(rawError)), status: r.status };
+  }
   const text = data.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join("") || "";
+
+  const parsed = extractAndParseJSON(text);
   let ideas = [];
-  try { const p = JSON.parse(text); if (Array.isArray(p?.ideas)) ideas = p.ideas; } catch { }
-  return { ok: true, text, ideas };
+  if (parsed.ok) {
+    if (Array.isArray(parsed.data?.ideas)) ideas = parsed.data.ideas;
+    else if (Array.isArray(parsed.data)) ideas = parsed.data;
+  }
+
+  return { ok: true, text, ideas, parse_error: parsed.ok ? null : parsed.error, parse_details: parsed };
 }
 
 async function engineRunTopic(topic) {
@@ -201,13 +267,38 @@ async function engineRunTopic(topic) {
   const tavRes = await tavilySearch(baseQueries[0]);
   const perlaPrompt = `REI Global Engine. Topic: ${name}. Market: ${market}. Context: ${tavRes.context?.slice(0, 20000)}. Return JSON: {"ideas":[{"title":"","snippet":"","summary":"","what_they_did":"","why_it_worked":"","how_to_replicate_md":"","budget_usd":0,"budget_status":"","soflo_status":""}]}`;
   const g = await geminiGenerate(perlaPrompt);
-  return { ok: true, ideas: g.ideas || [], gemini_error: g.ok ? null : g.error };
+  return {
+    ok: g.ok && !g.parse_error,
+    ideas: g.ideas || [],
+    ideasCount: (g.ideas || []).length,
+    gemini_error: g.ok ? null : g.error,
+    parse_error: g.parse_error,
+    parse_details: g.parse_details
+  };
 }
 
 // --- ENDPOINTS ---
 
 app.get("/api/healthz", (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 app.get("/", (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
+
+app.get("/api/index", (req, res) => {
+  try {
+    const raw = fs.readFileSync("metadata.json", "utf8");
+    res.json(JSON.parse(raw));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: "Failed to read metadata.json" });
+  }
+});
+
+app.get("/api/package", (req, res) => {
+  try {
+    const raw = fs.readFileSync("package.json", "utf8");
+    res.json(JSON.parse(raw));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: "Failed to read package.json" });
+  }
+});
 
 app.get("/api/status", (req, res) => {
   const saPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || null;

@@ -69,6 +69,13 @@ function extractAndParseJSON(text) {
   }
 }
 
+function sanitizeError(msg) {
+  if (typeof msg !== "string") return msg;
+  return msg
+    .replace(/tvly-[a-zA-Z0-9-]+/g, "tvly-REDACTED")
+    .replace(/AIza[a-zA-Z0-9_-]{35}/g, "GEMINI-REDACTED");
+}
+
 // --- GOOGLE AUTH ---
 
 const SCOPES = [
@@ -221,7 +228,10 @@ async function tavilySearch(query, opts = {}) {
   const payload = { api_key: key, query, search_depth: opts.search_depth || "advanced", include_answer: true, max_results: opts.max_results || 8 };
   const r = await fetch("https://api.tavily.com/search", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
   const data = await r.json();
-  if (!r.ok) return { ok: false, error: data.detail || data.error || `TAVILY_HTTP_${r.status}`, status: r.status };
+  if (!r.ok) {
+    const rawError = data.detail || data.error || `TAVILY_HTTP_${r.status}`;
+    return { ok: false, error: sanitizeError(String(rawError)), status: r.status };
+  }
   const context = (data.results || []).map(r => `[FUENTE: ${r.title || "Sin título"}]\nURL: ${r.url || ""}\nCONTENIDO: ${(r.content || "").slice(0, 1200)}`).join("\n\n---\n\n");
   return { ok: true, data, context };
 }
@@ -234,7 +244,10 @@ async function geminiGenerate(messagesOrPrompt) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
   const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }] }) });
   const data = await r.json();
-  if (!r.ok) return { ok: false, error: data.error?.message || `GEMINI_HTTP_${r.status}`, status: r.status };
+  if (!r.ok) {
+    const rawError = data.error?.message || `GEMINI_HTTP_${r.status}`;
+    return { ok: false, error: sanitizeError(String(rawError)), status: r.status };
+  }
   const text = data.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join("") || "";
 
   const parsed = extractAndParseJSON(text);
