@@ -69,11 +69,22 @@ function extractAndParseJSON(text) {
   }
 }
 
-function sanitizeError(msg) {
-  if (typeof msg !== "string") return msg;
-  return msg
-    .replace(/tvly-[a-zA-Z0-9-]+/g, "tvly-REDACTED")
-    .replace(/AIza[a-zA-Z0-9_-]{35}/g, "GEMINI-REDACTED");
+function redactSecrets(val) {
+  if (!val) return val;
+  if (typeof val === "string") {
+    return val
+      .replace(/tvly-[a-zA-Z0-9-]+/g, "tvly-REDACTED")
+      .replace(/AIza[a-zA-Z0-9_-]{35}/g, "GEMINI-REDACTED");
+  }
+  if (Array.isArray(val)) return val.map(redactSecrets);
+  if (typeof val === "object") {
+    const cleaned = {};
+    for (const key in val) {
+      cleaned[key] = redactSecrets(val[key]);
+    }
+    return cleaned;
+  }
+  return val;
 }
 
 // --- GOOGLE AUTH ---
@@ -230,7 +241,7 @@ async function tavilySearch(query, opts = {}) {
   const data = await r.json();
   if (!r.ok) {
     const rawError = data.detail || data.error || `TAVILY_HTTP_${r.status}`;
-    return { ok: false, error: sanitizeError(String(rawError)), status: r.status };
+    return { ok: false, error: redactSecrets(String(rawError)), status: r.status };
   }
   const context = (data.results || []).map(r => `[FUENTE: ${r.title || "Sin título"}]\nURL: ${r.url || ""}\nCONTENIDO: ${(r.content || "").slice(0, 1200)}`).join("\n\n---\n\n");
   return { ok: true, data, context };
@@ -246,7 +257,7 @@ async function geminiGenerate(messagesOrPrompt) {
   const data = await r.json();
   if (!r.ok) {
     const rawError = data.error?.message || `GEMINI_HTTP_${r.status}`;
-    return { ok: false, error: sanitizeError(String(rawError)), status: r.status };
+    return { ok: false, error: redactSecrets(String(rawError)), status: r.status };
   }
   const text = data.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join("") || "";
 
@@ -318,19 +329,19 @@ app.get("/api/status", (req, res) => {
 app.post("/api/tavily/search", async (req, res) => {
   if (!requireAccess(req)) return res.status(401).json({ error: "UNAUTHORIZED" });
   const out = await tavilySearch(req.body.query || req.body.q);
-  res.json(out);
+  res.json(redactSecrets(out));
 });
 
 app.post("/api/gemini/chat", async (req, res) => {
   if (!requireAccess(req)) return res.status(401).json({ error: "UNAUTHORIZED" });
   const out = await geminiGenerate(req.body.messages || req.body.prompt || req.body.text);
-  res.json(out);
+  res.json(redactSecrets(out));
 });
 
 app.post("/api/engine/runTopic", async (req, res) => {
   if (!requireAccess(req)) return res.status(401).json({ error: "UNAUTHORIZED" });
   const out = await engineRunTopic(req.body);
-  res.json(out);
+  res.json(redactSecrets(out));
 });
 
 // --- GOOGLE INTEGRATION ENDPOINTS ---
